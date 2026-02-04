@@ -2,63 +2,60 @@ import { useEffect } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import { GraduationCap, BookOpen, CheckCircle, AlertCircle } from 'lucide-react';
-import { dashboardApi } from '../../api/dashboardApi';
-import { useState } from 'react';
+import { fetchDashboardStats } from '../../redux/slices/dashboardSlice';
 import Card from '../common/Card';
+import Loader from '../common/Loader';
 import StageProgress from './StageProgress';
 import NextSteps from './NextSteps';
 import RecentTasks from './RecentTasks';
 import ShortlistSummary from './ShortlistSummary';
 
 const DashboardOverview = () => {
-  const [dashboardData, setDashboardData] = useState(null);
-  const [loading, setLoading] = useState(true);
+  const dispatch = useDispatch();
+  const { stats, isLoading, error } = useSelector((state) => state.dashboard);
 
   useEffect(() => {
-    const fetchDashboard = async () => {
-      try {
-        const response = await dashboardApi.getDashboard();
-        setDashboardData(response.data.data);
-      } catch (error) {
-        console.error('Failed to fetch dashboard', error);
-      } finally {
-        setLoading(false);
-      }
-    };
+    dispatch(fetchDashboardStats());
+  }, [dispatch]);
 
-    fetchDashboard();
-  }, []);
-
-  if (loading) {
-    return <div>Loading...</div>;
+  if (isLoading) {
+    return <Loader fullScreen />;
   }
 
-  const stats = [
+  if (error) {
+    return (
+      <div className="text-center py-12">
+        <p className="text-red-600">{error}</p>
+      </div>
+    );
+  }
+
+  const statCards = [
     {
       icon: BookOpen,
       label: 'Shortlisted',
-      value: dashboardData?.shortlists?.total || 0,
+      value: stats?.shortlists?.total || 0,
       color: 'text-blue-500',
       bgColor: 'bg-blue-100',
     },
     {
       icon: GraduationCap,
       label: 'Locked Universities',
-      value: dashboardData?.locks?.total || 0,
+      value: stats?.locks?.total || 0,
       color: 'text-purple-500',
       bgColor: 'bg-purple-100',
     },
     {
       icon: CheckCircle,
       label: 'Tasks Completed',
-      value: dashboardData?.tasks?.completed || 0,
+      value: stats?.tasks?.completed || 0,
       color: 'text-green-500',
       bgColor: 'bg-green-100',
     },
     {
       icon: AlertCircle,
       label: 'Pending Tasks',
-      value: dashboardData?.tasks?.pending || 0,
+      value: stats?.tasks?.pending || 0,
       color: 'text-orange-500',
       bgColor: 'bg-orange-100',
     },
@@ -68,7 +65,7 @@ const DashboardOverview = () => {
     <div className="space-y-6">
       {/* Stats Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        {stats.map((stat, index) => (
+        {statCards.map((stat, index) => (
           <motion.div
             key={stat.label}
             initial={{ opacity: 0, y: 20 }}
@@ -91,16 +88,16 @@ const DashboardOverview = () => {
       </div>
 
       {/* Stage Progress */}
-      <StageProgress progress={dashboardData?.progress} />
+      <StageProgress progress={stats?.progress} />
 
       {/* Two Column Layout */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <NextSteps />
-        <ShortlistSummary shortlists={dashboardData?.shortlists} />
+        <ShortlistSummary shortlists={stats?.shortlists} />
       </div>
 
       {/* Recent Tasks */}
-      <RecentTasks tasks={dashboardData?.tasks?.recent || []} />
+      <RecentTasks tasks={stats?.tasks?.recent || []} />
     </div>
   );
 };

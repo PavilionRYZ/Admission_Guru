@@ -1,5 +1,6 @@
 import { useEffect, useState } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
+import { useDispatch, useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import {
     MapPin,
@@ -12,7 +13,8 @@ import {
     ArrowLeft,
     Plus,
 } from 'lucide-react';
-import { universityApi } from '../../api/universityApi';
+import { fetchUniversityById } from '../../redux/slices/universitySlice';
+import { ROUTES } from '../../routes/routeConstants';
 import Button from '../common/Button';
 import Card from '../common/Card';
 import Loader from '../common/Loader';
@@ -21,27 +23,42 @@ import AddToShortlistModal from '../shortlist/AddToShortlistModal';
 const UniversityDetail = () => {
     const { id } = useParams();
     const navigate = useNavigate();
-    const [university, setUniversity] = useState(null);
-    const [loading, setLoading] = useState(true);
+    const dispatch = useDispatch();
     const [showModal, setShowModal] = useState(false);
 
+    const { currentUniversity: university, isLoading, error } = useSelector(
+        (state) => state.universities
+    );
+
     useEffect(() => {
-        const fetchUniversity = async () => {
-            try {
-                const response = await universityApi.getById(id);
-                setUniversity(response.data.data);
-            } catch (error) {
-                console.error('Failed to fetch university', error);
-            } finally {
-                setLoading(false);
-            }
-        };
+        if (id) {
+            dispatch(fetchUniversityById(id));
+        }
+    }, [dispatch, id]);
 
-        fetchUniversity();
-    }, [id]);
+    if (isLoading) return <Loader fullScreen />;
 
-    if (loading) return <Loader fullScreen />;
-    if (!university) return <div>University not found</div>;
+    if (error) {
+        return (
+            <div className="text-center py-12">
+                <p className="text-red-600 mb-4">{error}</p>
+                <Button onClick={() => navigate(ROUTES.UNIVERSITIES)}>
+                    Back to Universities
+                </Button>
+            </div>
+        );
+    }
+
+    if (!university) {
+        return (
+            <div className="text-center py-12">
+                <p className="text-gray-600 mb-4">University not found</p>
+                <Button onClick={() => navigate(ROUTES.UNIVERSITIES)}>
+                    Back to Universities
+                </Button>
+            </div>
+        );
+    }
 
     return (
         <>
@@ -49,7 +66,7 @@ const UniversityDetail = () => {
                 {/* Back Button */}
                 <Button
                     variant="secondary"
-                    onClick={() => navigate('/universities')}
+                    onClick={() => navigate(ROUTES.UNIVERSITIES)}
                     icon={ArrowLeft}
                 >
                     Back to Universities
@@ -80,15 +97,17 @@ const UniversityDetail = () => {
                                             rel="noopener noreferrer"
                                             className="text-primary-500 hover:underline"
                                         >
-                                            {university.website}
+                                            Visit Website
                                         </a>
                                     </div>
                                 )}
 
-                                <div className="flex items-center space-x-2 text-gray-600">
-                                    <Users size={20} />
-                                    <span>{university.studentCount?.toLocaleString()} students</span>
-                                </div>
+                                {university.studentCount && (
+                                    <div className="flex items-center space-x-2 text-gray-600">
+                                        <Users size={20} />
+                                        <span>{university.studentCount.toLocaleString()} students</span>
+                                    </div>
+                                )}
                             </div>
                         </div>
 
@@ -96,7 +115,9 @@ const UniversityDetail = () => {
                             <div className="bg-gradient-to-r from-primary-500 to-secondary-500 text-white p-6 rounded-xl text-center">
                                 <Award className="w-8 h-8 mx-auto mb-2" />
                                 <p className="text-sm">QS Ranking</p>
-                                <p className="text-3xl font-bold">{university.ranking?.qs || 'N/A'}</p>
+                                <p className="text-3xl font-bold">
+                                    {university.ranking?.qs || 'N/A'}
+                                </p>
                             </div>
                         </div>
                     </div>
@@ -112,8 +133,9 @@ const UniversityDetail = () => {
                             <div>
                                 <p className="text-sm text-gray-600">Annual Tuition</p>
                                 <p className="text-xl font-bold text-gray-800">
-                                    ${university.cost?.tuitionPerYear?.min?.toLocaleString()} -{' '}
-                                    ${university.cost?.tuitionPerYear?.max?.toLocaleString()}
+                                    {university.cost?.tuitionPerYear?.min && university.cost?.tuitionPerYear?.max
+                                        ? `$${university.cost.tuitionPerYear.min.toLocaleString()} - $${university.cost.tuitionPerYear.max.toLocaleString()}`
+                                        : 'Contact University'}
                                 </p>
                             </div>
                         </div>
@@ -168,7 +190,7 @@ const UniversityDetail = () => {
                                     initial={{ opacity: 0, y: 20 }}
                                     animate={{ opacity: 1, y: 0 }}
                                     transition={{ delay: idx * 0.1 }}
-                                    className="p-4 bg-gray-50 rounded-lg"
+                                    className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
                                 >
                                     <h3 className="font-semibold text-gray-800 mb-2">
                                         {program.name}
@@ -176,9 +198,9 @@ const UniversityDetail = () => {
                                     <div className="space-y-1 text-sm text-gray-600">
                                         <p>Degree: {program.degree}</p>
                                         <p>Duration: {program.duration}</p>
-                                        <p>
-                                            Tuition: ${program.tuition?.toLocaleString()} per year
-                                        </p>
+                                        {program.tuition && (
+                                            <p>Tuition: ${program.tuition.toLocaleString()} per year</p>
+                                        )}
                                     </div>
                                 </motion.div>
                             ))}
@@ -193,21 +215,31 @@ const UniversityDetail = () => {
                             Admission Requirements
                         </h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                            {university.admissionRequirements.minimumGPA && (
+                                <div>
+                                    <h3 className="font-semibold text-gray-700 mb-2">
+                                        Minimum GPA
+                                    </h3>
+                                    <p className="text-gray-600">
+                                        {university.admissionRequirements.minimumGPA}
+                                    </p>
+                                </div>
+                            )}
                             <div>
                                 <h3 className="font-semibold text-gray-700 mb-2">
-                                    Minimum GPA
+                                    English Test Requirements
                                 </h3>
                                 <p className="text-gray-600">
-                                    {university.admissionRequirements.minimumGPA || 'N/A'}
-                                </p>
-                            </div>
-                            <div>
-                                <h3 className="font-semibold text-gray-700 mb-2">
-                                    English Test
-                                </h3>
-                                <p className="text-gray-600">
-                                    IELTS: {university.admissionRequirements.ieltsScore || 'N/A'} |
-                                    TOEFL: {university.admissionRequirements.toeflScore || 'N/A'}
+                                    {university.admissionRequirements.ieltsScore && (
+                                        <>IELTS: {university.admissionRequirements.ieltsScore}</>
+                                    )}
+                                    {university.admissionRequirements.ieltsScore &&
+                                        university.admissionRequirements.toeflScore && ' | '}
+                                    {university.admissionRequirements.toeflScore && (
+                                        <>TOEFL: {university.admissionRequirements.toeflScore}</>
+                                    )}
+                                    {!university.admissionRequirements.ieltsScore &&
+                                        !university.admissionRequirements.toeflScore && 'Contact University'}
                                 </p>
                             </div>
                         </div>

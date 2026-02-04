@@ -1,64 +1,156 @@
-import { createSlice, createAsyncThunk } from '@reduxjs/toolkit';
-import { profileApi } from '../../api/profileApi';
+import { createSlice, createAsyncThunk } from "@reduxjs/toolkit";
+import axios from "axios";
 
-export const fetchProfile = createAsyncThunk('profile/fetch', async () => {
-  const response = await profileApi.getProfile();
-  return response.data.data;
-});
+const API_URL = `${import.meta.env.VITE_API_URL}`;
 
-export const createOrUpdateProfile = createAsyncThunk(
-  'profile/createOrUpdate',
-  async (data) => {
-    const response = await profileApi.createOrUpdate(data);
-    return response.data.data;
-  }
+axios.defaults.withCredentials = true;
+
+const initialState = {
+  profile: null,
+  isLoading: false,
+  error: null,
+  message: null,
+};
+
+// Fetch Profile
+export const fetchProfile = createAsyncThunk(
+  "profile/fetchProfile",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/profile/ed-profile/me`);
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to fetch profile",
+      );
+    }
+  },
 );
 
-export const checkOnboarding = createAsyncThunk('profile/checkOnboarding', async () => {
-  const response = await profileApi.checkOnboardingStatus();
-  return response.data;
-});
+// Create/Update Profile (Onboarding)
+export const createOrUpdateProfile = createAsyncThunk(
+  "profile/createOrUpdateProfile",
+  async (profileData, { rejectWithValue }) => {
+    try {
+      const response = await axios.post(
+        `${API_URL}/profile/ed-profile`,
+        profileData,
+      );
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to save profile",
+      );
+    }
+  },
+);
+
+// Update Profile
+export const updateProfile = createAsyncThunk(
+  "profile/updateProfile",
+  async (profileData, { rejectWithValue }) => {
+    try {
+      const response = await axios.patch(
+        `${API_URL}/profile/update`,
+        profileData,
+      );
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to update profile",
+      );
+    }
+  },
+);
+
+// Check Onboarding Status
+export const checkOnboardingStatus = createAsyncThunk(
+  "profile/checkOnboardingStatus",
+  async (_, { rejectWithValue }) => {
+    try {
+      const response = await axios.get(`${API_URL}/profile/onboarding-status`);
+      return response.data.data;
+    } catch (error) {
+      return rejectWithValue(
+        error.response?.data?.message || "Failed to check onboarding status",
+      );
+    }
+  },
+);
 
 const profileSlice = createSlice({
-  name: 'profile',
-  initialState: {
-    data: null,
-    loading: false,
-    error: null,
-    onboardingComplete: false,
-    currentStage: 'Building Profile',
-  },
+  name: "profile",
+  initialState,
   reducers: {
-    clearProfile: (state) => {
-      state.data = null;
+    clearProfileState: (state) => {
+      state.error = null;
+      state.message = null;
+    },
+    setProfile: (state, action) => {
+      state.profile = action.payload;
     },
   },
   extraReducers: (builder) => {
     builder
+      // Fetch Profile
       .addCase(fetchProfile.pending, (state) => {
-        state.loading = true;
+        state.isLoading = true;
+        state.error = null;
       })
       .addCase(fetchProfile.fulfilled, (state, action) => {
-        state.loading = false;
-        state.data = action.payload;
-        state.onboardingComplete = action.payload?.isOnboardingComplete || false;
-        state.currentStage = action.payload?.currentStage || 'Building Profile';
+        state.isLoading = false;
+        state.profile = action.payload;
       })
       .addCase(fetchProfile.rejected, (state, action) => {
-        state.loading = false;
-        state.error = action.error.message;
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // Create/Update Profile (Onboarding)
+      .addCase(createOrUpdateProfile.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.message = null;
       })
       .addCase(createOrUpdateProfile.fulfilled, (state, action) => {
-        state.data = action.payload;
-        state.onboardingComplete = true;
-        state.currentStage = action.payload.currentStage;
+        state.isLoading = false;
+        state.profile = action.payload;
+        state.message = "Profile saved successfully";
       })
-      .addCase(checkOnboarding.fulfilled, (state, action) => {
-        state.onboardingComplete = action.payload.isComplete;
-        state.currentStage = action.payload.currentStage;
+      .addCase(createOrUpdateProfile.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+
+      // Update Profile
+      .addCase(updateProfile.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+        state.message = null;
+      })
+      .addCase(updateProfile.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.profile = action.payload;
+        state.message = "Profile updated successfully";
+      })
+      .addCase(updateProfile.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
+      })
+      .addCase(checkOnboardingStatus.pending, (state) => {
+        state.isLoading = true;
+        state.error = null;
+      })
+      .addCase(checkOnboardingStatus.fulfilled, (state, action) => {
+        state.isLoading = false;
+        state.profile = action.payload;
+      })
+      .addCase(checkOnboardingStatus.rejected, (state, action) => {
+        state.isLoading = false;
+        state.error = action.payload;
       });
   },
 });
 
-export const { clearProfile } = profileSlice.actions;
+export const { clearProfileState, setProfile } = profileSlice.actions;
 export default profileSlice.reducer;
